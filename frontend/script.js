@@ -1,349 +1,248 @@
 const API_URL = "http://127.0.0.1:8000";
 
+document.addEventListener("DOMContentLoaded", () => {
 
 // =========================
-// NAVIGATION
+// PAGE NAVIGATION
 // =========================
 
-function showSection(section) {
+const pageLinks = {
+    dashboard: "dashboard.html",
+    triage: "emergency-triage.html",
+    queue: "priority-queue.html",
+    patients: "patients.html",
+    reassessment: "reassessment.html",
+    history: "history.html",
+    unidentified: "unidentified-patient.html",
+    settings: "settings.html"
+};
 
-    document.querySelectorAll(".nav-btn").forEach(button => {
-        button.classList.remove("active");
-    });
-
-    const buttons = document.querySelectorAll(".nav-btn");
-
-    buttons.forEach(button => {
-
-        if (
-            button.textContent
-                .toLowerCase()
-                .includes(section.toLowerCase())
-        ) {
-            button.classList.add("active");
-        }
-
-    });
-
-    if (section !== "triage") {
-        alert(
-            section.charAt(0).toUpperCase() +
-            section.slice(1) +
-            " module coming soon."
-        );
+function navigateTo(page) {
+    if (pageLinks[page]) {
+        window.location.href = pageLinks[page];
     }
 }
 
-
 // =========================
-// ASSESS PATIENT
+// NAVBAR BUTTONS
 // =========================
 
-document
-    .getElementById("assessBtn")
-    .addEventListener("click", async function () {
-
-        const button = document.getElementById("assessBtn");
-
-
-        // =========================
-        // GET RAW INPUT VALUES
-        // =========================
-
-        const name =
-            document.getElementById("name").value.trim();
-
-        const age =
-            document.getElementById("age").value;
-
-        const sex =
-            document.getElementById("sex").value;
-
-        const symptoms =
-            document.getElementById("symptoms").value.trim();
-
-        const disorders =
-            document.getElementById("disorders").value.trim();
-
-        const heartRate =
-            document.getElementById("heart_rate").value;
-
-        const systolicBP =
-            document.getElementById("systolic_bp").value;
-
-        const diastolicBP =
-            document.getElementById("diastolic_bp").value;
-
-        const respiratoryRate =
-            document.getElementById("respiratory_rate").value;
-
-        const spo2 =
-            document.getElementById("spo2").value;
-
-        const temperature =
-            document.getElementById("temperature").value;
-
-        const painScore =
-            document.getElementById("pain_score").value;
-
-        const gcsScore =
-            document.getElementById("gcs_score").value;
-
-        const arrivalMode =
-            document.getElementById("arrival_mode").value;
-
-
-        // =========================
-        // VALIDATION
-        // =========================
-
-        if (
-            !age ||
-            !sex ||
-            !symptoms ||
-            !heartRate ||
-            !systolicBP ||
-            !diastolicBP ||
-            !respiratoryRate ||
-            !spo2 ||
-            !temperature ||
-            painScore === "" ||
-            !gcsScore
-        ) {
-
-            alert(
-                "Please enter all required patient and vital information."
-            );
-
-            return;
-        }
-
-
-        // =========================
-        // CREATE REQUEST
-        // =========================
-
-        const patient = {
-
-            name: name || "Unknown",
-
-            age: Number(age),
-
-            sex: sex,
-
-            symptoms: symptoms,
-
-            disorders: disorders,
-
-            heart_rate: Number(heartRate),
-
-            systolic_bp: Number(systolicBP),
-
-            diastolic_bp: Number(diastolicBP),
-
-            respiratory_rate: Number(respiratoryRate),
-
-            spo2: Number(spo2),
-
-            temperature: Number(temperature),
-
-            pain_score: Number(painScore),
-
-            gcs_score: Number(gcsScore),
-
-            arrival_mode: arrivalMode
-
-        };
-
-
-        // =========================
-        // LOADING
-        // =========================
-
-        button.disabled = true;
-
-        button.querySelector("span").textContent =
-            "Assessing...";
-
-
-        try {
-
-            // =========================
-            // SEND TO FASTAPI
-            // =========================
-
-            const response = await fetch(
-                `${API_URL}/patients`,
-                {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-
-                    body: JSON.stringify(patient)
-                }
-            );
-
-
-            // =========================
-            // HANDLE API ERROR
-            // =========================
-
-            if (!response.ok) {
-
-                const errorData =
-                    await response.json();
-
-                console.error(
-                    "Backend error:",
-                    errorData
-                );
-
-                throw new Error(
-                    errorData.detail ||
-                    "Assessment failed"
-                );
-            }
-
-
-            // =========================
-            // GET RESULT
-            // =========================
-
-            const result =
-                await response.json();
-
-            console.log(
-                "MEDORA result:",
-                result
-            );
-
-
-            // =========================
-            // SHOW RESULT
-            // =========================
-
-            const resultSection =
-                document.getElementById(
-                    "resultSection"
-                );
-
-            resultSection.classList.remove(
-                "hidden"
-            );
-
-
-            document.getElementById(
-                "urgencyResult"
-            ).textContent =
-                result.urgency;
-
-
-            document.getElementById(
-                "riskScore"
-            ).textContent =
-                `${result.risk_score}%`;
-
-
-            document.getElementById(
-                "patientId"
-            ).textContent =
-                result.patient_id;
-
-
-            // =========================
-            // RISK FACTORS
-            // =========================
-
-            const riskFactors =
-                document.getElementById(
-                    "riskFactors"
-                );
-
-            riskFactors.innerHTML = "";
-
-
-            if (
-                result.risk_factors &&
-                result.risk_factors.length > 0
-            ) {
-
-                result.risk_factors.forEach(
-                    factor => {
-
-                        const li =
-                            document.createElement(
-                                "li"
-                            );
-
-                        li.textContent =
-                            factor;
-
-                        riskFactors.appendChild(
-                            li
-                        );
-
-                    }
-                );
-
-            } else {
-
-                const li =
-                    document.createElement(
-                        "li"
-                    );
-
-                li.textContent =
-                    "No major warning indicators detected";
-
-                riskFactors.appendChild(li);
-            }
-
-
-            // =========================
-            // SCROLL TO RESULT
-            // =========================
-
-            resultSection.scrollIntoView({
-                behavior: "smooth",
-                block: "start"
-            });
-
-        }
-
-
-        // =========================
-        // CONNECTION ERROR
-        // =========================
-
-        catch (error) {
-
-            console.error(
-                "MEDORA error:",
-                error
-            );
-
-            alert(
-                "Unable to connect to MEDORA backend.\n\n" +
-                "Make sure FastAPI is running on:\n" +
-                "http://127.0.0.1:8000"
-            );
-
-        }
-
-
-        // =========================
-        // RESET BUTTON
-        // =========================
-
-        finally {
-
-            button.disabled = false;
-
-            button.querySelector("span").textContent =
-                "Assess Patient";
-
-        }
-
+const navButtons = document.querySelectorAll("[data-page]");
+
+navButtons.forEach(button => {
+    button.addEventListener("click", () => {
+        const page = button.dataset.page;
+        navigateTo(page);
     });
+});
+
+// Support common IDs if data-page is not used
+const navigationMap = {
+    dashboardBtn: "dashboard",
+    triageBtn: "triage",
+    queueBtn: "queue",
+    patientsBtn: "patients",
+    reassessmentBtn: "reassessment",
+    historyBtn: "history",
+    unidentifiedBtn: "unidentified",
+    settingsBtn: "settings"
+};
+
+Object.entries(navigationMap).forEach(([id, page]) => {
+    const button = document.getElementById(id);
+
+    if (button) {
+        button.addEventListener("click", () => {
+            navigateTo(page);
+        });
+    }
+});
+
+// =========================
+// LOGO / HOME
+// =========================
+
+const logo = document.querySelector(".brand");
+
+if (logo) {
+    logo.style.cursor = "pointer";
+
+    logo.addEventListener("click", () => {
+        navigateTo("dashboard");
+    });
+}
+
+// =========================
+// BACK BUTTONS
+// =========================
+
+const backButtons = document.querySelectorAll("[data-back]");
+
+backButtons.forEach(button => {
+    button.addEventListener("click", () => {
+        window.history.back();
+    });
+});
+
+// =========================
+// PAGE-SPECIFIC BUTTONS
+// =========================
+
+const addPatientBtn = document.getElementById("addPatientBtn");
+
+if (addPatientBtn) {
+    addPatientBtn.addEventListener("click", () => {
+        navigateTo("triage");
+    });
+}
+
+const viewQueueBtn = document.getElementById("viewQueueBtn");
+
+if (viewQueueBtn) {
+    viewQueueBtn.addEventListener("click", () => {
+        navigateTo("queue");
+    });
+}
+
+const resultAddPatientBtn = document.getElementById("resultAddPatientBtn");
+
+if (resultAddPatientBtn) {
+    resultAddPatientBtn.addEventListener("click", () => {
+        navigateTo("triage");
+    });
+}
+
+// =========================
+// ACTIVE NAVIGATION
+// =========================
+
+const currentPage = window.location.pathname
+    .split("/")
+    .pop()
+    .toLowerCase();
+
+const activePageMap = {
+    "index.html": "dashboard",
+    "": "dashboard",
+    "dashboard.html": "dashboard",
+    "emergency-triage.html": "triage",
+    "priority-queue.html": "queue",
+    "patients.html": "patients",
+    "reassessment.html": "reassessment",
+    "history.html": "history",
+    "unidentified-patient.html": "unidentified",
+    "settings.html": "settings"
+};
+
+const activePage = activePageMap[currentPage];
+
+if (activePage) {
+    document.querySelectorAll("[data-page]").forEach(button => {
+        if (button.dataset.page === activePage) {
+            button.classList.add("active");
+        } else {
+            button.classList.remove("active");
+        }
+    });
+}
+
+// =========================
+// BACKEND CONNECTION STATUS
+// =========================
+
+const systemStatus = document.getElementById("systemStatus");
+
+async function checkBackend() {
+    if (!systemStatus) return;
+
+    try {
+        const response = await fetch(`${API_URL}/health`);
+
+        if (response.ok) {
+            systemStatus.textContent = "System Online";
+            systemStatus.classList.add("online");
+            systemStatus.classList.remove("offline");
+        } else {
+            throw new Error("Backend unavailable");
+        }
+
+    } catch (error) {
+        systemStatus.textContent = "System Offline";
+        systemStatus.classList.add("offline");
+        systemStatus.classList.remove("online");
+
+        console.error("Backend connection error:", error);
+    }
+}
+
+checkBackend();
+
+// =========================
+// GLOBAL API HELPER
+// =========================
+
+window.MEDORA = {
+    API_URL,
+
+    navigateTo,
+
+    async get(endpoint) {
+        const response = await fetch(`${API_URL}${endpoint}`);
+
+        if (!response.ok) {
+            throw new Error(`GET ${endpoint} failed: ${response.status}`);
+        }
+
+        return await response.json();
+    },
+
+    async post(endpoint, data) {
+        const response = await fetch(`${API_URL}${endpoint}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (!response.ok) {
+            throw new Error(`POST ${endpoint} failed: ${response.status}`);
+        }
+
+        return await response.json();
+    },
+
+    async put(endpoint, data) {
+        const response = await fetch(`${API_URL}${endpoint}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (!response.ok) {
+            throw new Error(`PUT ${endpoint} failed: ${response.status}`);
+        }
+
+        return await response.json();
+    },
+
+    async delete(endpoint) {
+        const response = await fetch(`${API_URL}${endpoint}`, {
+            method: "DELETE"
+        });
+
+        if (!response.ok) {
+            throw new Error(`DELETE ${endpoint} failed: ${response.status}`);
+        }
+
+        return await response.json();
+    }
+};
+
+console.log("MEDORA script.js loaded");
+console.log("Current page:", currentPage);
+console.log("API:", API_URL);
+
+});

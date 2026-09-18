@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MEDORA - Patient Details</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<header class="topbar">
+    <div class="brand">MEDORA</div>
+
+```
+<div class="system-status">
+    <span class="status-dot"></span>
+    System Online
+</div>
+```
+
+</header>
+
+<nav class="navbar">
+    <a href="dashboard.html" class="nav-btn">Dashboard</a>
+    <a href="emergency-triage.html" class="nav-btn">Triage</a>
+    <a href="priority-queue.html" class="nav-btn">Priority Queue</a>
+    <a href="patients.html" class="nav-btn active">Patients</a>
+    <a href="history.html" class="nav-btn">History</a>
+    <a href="settings.html" class="nav-btn">Settings</a>
+</nav>
+
+<main class="container">
+
+```
+<section class="page-section">
+
+    <div class="section-header">
+        <div>
+            <h1>Patient Details</h1>
+            <p>Complete assessment record.</p>
+        </div>
+
+        <button class="secondary-button" onclick="goBack()">
+            Back to Patients
+        </button>
+    </div>
+
+    <div id="errorSection" class="error-card hidden">
+        <strong>Error</strong>
+        <p id="errorMessage"></p>
+    </div>
+
+    <div id="loadingSection" class="card">
+        Loading patient details...
+    </div>
+
+    <div id="patientContent" class="hidden">
+
+        <div class="card">
+
+            <div class="card-header">
+                <h2>Patient Information</h2>
+                <span id="patientId"></span>
+            </div>
+
+            <div class="form-grid">
+
+                <div class="form-group">
+                    <label>Name</label>
+                    <input id="name" type="text" readonly>
+                </div>
+
+                <div class="form-group">
+                    <label>Age</label>
+                    <input id="age" type="text" readonly>
+                </div>
+
+                <div class="form-group">
+                    <label>Sex</label>
+                    <input id="sex" type="text" readonly>
+                </div>
+
+                <div class="form-group">
+                    <label>Arrival Mode</label>
+                    <input id="arrival_mode" type="text" readonly>
+                </div>
+
+                <div class="form-group full-width">
+                    <label>Symptoms</label>
+                    <textarea id="symptoms" readonly></textarea>
+                </div>
+
+                <div class="form-group full-width">
+                    <label>Existing Disorders / Comorbidities</label>
+                    <textarea id="disorders" readonly></textarea>
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="card">
+
+            <div class="card-header">
+                <h2>Vital Signs</h2>
+            </div>
+
+            <div class="form-grid">
+
+                <div class="form-group">
+                    <label>Heart Rate</label>
+                    <input id="heart_rate" type="text" readonly>
+                </div>
+
+                <div class="form-group">
+                    <label>Systolic BP</label>
+                    <input id="systolic_bp" type="text" readonly>
+                </div>
+
+                <div class="form-group">
+                    <label>Diastolic BP</label>
+                    <input id="diastolic_bp" type="text" readonly>
+                </div>
+
+                <div class="form-group">
+                    <label>Respiratory Rate</label>
+                    <input id="respiratory_rate" type="text" readonly>
+                </div>
+
+                <div class="form-group">
+                    <label>SpO₂</label>
+                    <input id="spo2" type="text" readonly>
+                </div>
+
+                <div class="form-group">
+                    <label>Temperature</label>
+                    <input id="temperature" type="text" readonly>
+                </div>
+
+                <div class="form-group">
+                    <label>Pain Score</label>
+                    <input id="pain_score" type="text" readonly>
+                </div>
+
+                <div class="form-group">
+                    <label>GCS Score</label>
+                    <input id="gcs_score" type="text" readonly>
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="card">
+
+            <div class="card-header">
+                <h2>Triage Assessment</h2>
+            </div>
+
+            <div class="result-grid">
+
+                <div class="result-box">
+                    <span class="result-label">Urgency</span>
+                    <div id="urgencyResult" class="urgency-badge">
+                        -
+                    </div>
+                </div>
+
+                <div class="result-box">
+                    <span class="result-label">Risk Score</span>
+                    <strong id="riskScore">-</strong>
+                </div>
+
+                <div class="result-box">
+                    <span class="result-label">Status</span>
+                    <strong id="status">-</strong>
+                </div>
+
+            </div>
+
+            <div class="risk-section">
+                <h3>Risk Factors</h3>
+                <ul id="riskFactors">
+                    <li>No risk factors recorded.</li>
+                </ul>
+            </div>
+
+        </div>
+
+        <div class="card">
+
+            <div class="card-header">
+                <h2>Actions</h2>
+            </div>
+
+            <div class="result-actions">
+
+                <button
+                    class="primary-button"
+                    onclick="reassessPatient()">
+                    Reassess Patient
+                </button>
+
+                <button
+                    class="secondary-button"
+                    onclick="viewTimeline()">
+                    View Timeline
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+```
+
+</main>
+
+<footer class="footer">
+    MEDORA is an AI-assisted triage decision-support prototype.
+    It does not provide a diagnosis and does not replace professional clinical judgment.
+</footer>
+
+<script>
+
+const API_URL = "http://127.0.0.1:8000";
+
+const params = new URLSearchParams(window.location.search);
+const patientIdValue = params.get("id");
+
+const loadingSection =
+    document.getElementById("loadingSection");
+
+const patientContent =
+    document.getElementById("patientContent");
+
+const errorSection =
+    document.getElementById("errorSection");
+
+const errorMessage =
+    document.getElementById("errorMessage");
+
+function setValue(id, value) {
+
+    const element = document.getElementById(id);
+
+    if (element) {
+        element.value =
+            value !== undefined &&
+            value !== null
+                ? value
+                : "-";
+    }
+}
+
+function setText(id, value) {
+
+    const element = document.getElementById(id);
+
+    if (element) {
+        element.textContent =
+            value !== undefined &&
+            value !== null
+                ? value
+                : "-";
+    }
+}
+
+async function loadPatient() {
+
+    if (!patientIdValue) {
+
+        showError("No patient ID was provided.");
+
+        loadingSection.classList.add("hidden");
+
+        return;
+    }
+
+    try {
+
+        const response =
+            await fetch(
+                `${API_URL}/patients/${encodeURIComponent(patientIdValue)}`
+            );
+
+        if (!response.ok) {
+            throw new Error("Patient record not found.");
+        }
+
+        const data = await response.json();
+
+        const patient =
+            data.patient ||
+            data;
+
+        populatePatient(patient);
+
+        loadingSection.classList.add("hidden");
+
+        patientContent.classList.remove("hidden");
+
+    } catch (error) {
+
+        loadingSection.classList.add("hidden");
+
+        showError(
+            error.message ||
+            "Unable to load patient details."
+        );
+    }
+}
+
+function populatePatient(patient) {
+
+    const patientId =
+        patient.patient_id ||
+        patient.id ||
+        patientIdValue;
+
+    setText("patientId", patientId);
+
+    setValue("name", patient.name || "Unknown");
+    setValue("age", patient.age);
+    setValue("sex", patient.sex);
+    setValue("arrival_mode", patient.arrival_mode);
+
+    setValue("symptoms", patient.symptoms);
+    setValue("disorders", patient.disorders);
+
+    setValue("heart_rate", patient.heart_rate);
+    setValue("systolic_bp", patient.systolic_bp);
+    setValue("diastolic_bp", patient.diastolic_bp);
+    setValue("respiratory_rate", patient.respiratory_rate);
+    setValue("spo2", patient.spo2);
+    setValue("temperature", patient.temperature);
+    setValue("pain_score", patient.pain_score);
+    setValue("gcs_score", patient.gcs_score);
+
+    const urgency =
+        patient.urgency ||
+        patient.triage_acuity ||
+        patient.priority_level ||
+        "Unknown";
+
+    const urgencyElement =
+        document.getElementById("urgencyResult");
+
+    urgencyElement.textContent = urgency;
+
+    urgencyElement.className =
+        `urgency-badge ${getUrgencyClass(urgency)}`;
+
+    setText(
+        "riskScore",
+        patient.risk_score !== undefined
+            ? patient.risk_score
+            : "-"
+    );
+
+    setText(
+        "status",
+        patient.status || "Waiting"
+    );
+
+    const factors =
+        patient.risk_factors ||
+        patient.riskFactors ||
+        [];
+
+    const riskList =
+        document.getElementById("riskFactors");
+
+    if (Array.isArray(factors) && factors.length > 0) {
+
+        riskList.innerHTML =
+            factors.map(
+                factor =>
+                    `<li>${escapeHtml(factor)}</li>`
+            ).join("");
+
+    } else if (typeof factors === "string" && factors.trim()) {
+
+        riskList.innerHTML =
+            `<li>${escapeHtml(factors)}</li>`;
+
+    } else {
+
+        riskList.innerHTML =
+            "<li>No risk factors recorded.</li>";
+    }
+}
+
+function getUrgencyClass(urgency) {
+
+    const value =
+        String(urgency).toLowerCase();
+
+    if (value.includes("critical")) {
+        return "critical";
+    }
+
+    if (value.includes("urgent")) {
+        return "urgent";
+    }
+
+    return "non-urgent";
+}
+
+function escapeHtml(value) {
+
+    return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+function showError(message) {
+
+    errorMessage.textContent = message;
+
+    errorSection.classList.remove("hidden");
+}
+
+function goBack() {
+
+    window.location.href = "patients.html";
+}
+
+function reassessPatient() {
+
+    window.location.href =
+        `reassessment.html?id=${encodeURIComponent(patientIdValue)}`;
+}
+
+function viewTimeline() {
+
+    window.location.href =
+        `history.html?id=${encodeURIComponent(patientIdValue)}`;
+}
+
+loadPatient();
+
+</script>
+
+</body>
+</html>

@@ -1,365 +1,156 @@
-```python
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
-import uuid
-
-from database import init_db
-from schemas import PatientInput, ReassessmentInput
-from triage import calculate_triage
-from models import (
-    create_patient_record,
-    get_patient_by_id,
-    get_all_patients,
-    update_patient,
-    add_assessment,
-    get_patient_timeline,
-)
-
-
-# ============================================================
-# APP
-# ============================================================
-
-app = FastAPI(
-    title="MEDORA",
-    description="AI-Assisted Hospital Emergency Triage and Patient Prioritization System",
-    version="1.0.0"
-)
-
-
-# ============================================================
-# CORS
-# ============================================================
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-# ============================================================
-# DATABASE INITIALIZATION
-# ============================================================
-
-init_db()
-
-
-# ============================================================
-# ROOT
-# ============================================================
-
-@app.get("/")
-def root():
-    return {
-        "system": "MEDORA",
-        "status": "online",
-        "message": "MEDORA Emergency Triage API is running"
-    }
-
-
-# ============================================================
-# HEALTH CHECK
-# ============================================================
-
-@app.get("/health")
-def health_check():
-    return {
-        "status": "healthy",
-        "service": "MEDORA API"
-    }
-
-
-# ============================================================
-# CREATE / TRIAGE PATIENT
-# ============================================================
-
-@app.post("/patients")
-def create_patient(patient: PatientInput):
-
-    # Run triage engine
-    result = calculate_triage(patient)
-
-    # Generate unique patient ID
-    patient_id = "MED-" + uuid.uuid4().hex[:8].upper()
-
-    # Current timestamp
-    now = datetime.now().isoformat(timespec="seconds")
-
-    # Store patient
-    create_patient_record(
-        patient_id=patient_id,
-        name=patient.name,
-        age=patient.age,
-        sex=patient.sex,
-        symptoms=patient.symptoms,
-        disorders=patient.disorders,
-
-        heart_rate=patient.heart_rate,
-        systolic_bp=patient.systolic_bp,
-        diastolic_bp=patient.diastolic_bp,
-        respiratory_rate=patient.respiratory_rate,
-        spo2=patient.spo2,
-        temperature=patient.temperature,
-
-        pain_score=patient.pain_score,
-        gcs_score=patient.gcs_score,
-        arrival_mode=patient.arrival_mode,
-
-        urgency=result["urgency"],
-        risk_score=result["risk_score"],
-        risk_factors=", ".join(result["risk_factors"]),
-
-        created_at=now,
-        updated_at=now
-    )
-
-    # Store first assessment
-    add_assessment(
-        patient_id=patient_id,
-        urgency=result["urgency"],
-        risk_score=result["risk_score"],
-        risk_factors=", ".join(result["risk_factors"]),
-        timestamp=now
-    )
-
-    return {
-        "success": True,
-        "patient_id": patient_id,
-        "urgency": result["urgency"],
-        "risk_score": result["risk_score"],
-        "risk_factors": result["risk_factors"],
-        "timestamp": now
-    }
-
-
-# ============================================================
-# GET ALL PATIENTS
-# ============================================================
-
-@app.get("/patients")
-def patients():
-
-    records = get_all_patients()
-
-    return {
-        "success": True,
-        "count": len(records),
-        "patients": records
-    }
-
-
-# ============================================================
-# GET SINGLE PATIENT
-# ============================================================
-
-@app.get("/patients/{patient_id}")
-def patient_details(patient_id: str):
-
-    patient = get_patient_by_id(patient_id)
-
-    if not patient:
-        raise HTTPException(
-            status_code=404,
-            detail="Patient not found"
-        )
-
-    return {
-        "success": True,
-        "patient": patient
-    }
-
-
-# ============================================================
-# REASSESS PATIENT
-# ============================================================
-
-@app.put("/patients/{patient_id}/reassess")
-def reassess_patient(
-    patient_id: str,
-    reassessment: PatientInput
-):
-
-    existing_patient = get_patient_by_id(patient_id)
-
-    if not existing_patient:
-        raise HTTPException(
-            status_code=404,
-            detail="Patient not found"
-        )
-
-    # Re-run triage
-    result = calculate_triage(reassessment)
-
-    now = datetime.now().isoformat(timespec="seconds")
-
-    # Update current patient information
-    update_patient(
-        patient_id=patient_id,
-
-        name=reassessment.name,
-        age=reassessment.age,
-        sex=reassessment.sex,
-        symptoms=reassessment.symptoms,
-        disorders=reassessment.disorders,
-
-        heart_rate=reassessment.heart_rate,
-        systolic_bp=reassessment.systolic_bp,
-        diastolic_bp=reassessment.diastolic_bp,
-        respiratory_rate=reassessment.respiratory_rate,
-        spo2=reassessment.spo2,
-        temperature=reassessment.temperature,
-
-        pain_score=reassessment.pain_score,
-        gcs_score=reassessment.gcs_score,
-        arrival_mode=reassessment.arrival_mode,
-
-        urgency=result["urgency"],
-        risk_score=result["risk_score"],
-        risk_factors=", ".join(result["risk_factors"]),
-
-        updated_at=now
-    )
-
-    # Save reassessment history
-    add_assessment(
-        patient_id=patient_id,
-        urgency=result["urgency"],
-        risk_score=result["risk_score"],
-        risk_factors=", ".join(result["risk_factors"]),
-        timestamp=now
-    )
-
-    return {
-        "success": True,
-        "patient_id": patient_id,
-        "urgency": result["urgency"],
-        "risk_score": result["risk_score"],
-        "risk_factors": result["risk_factors"],
-        "timestamp": now
-    }
-
-
-# ============================================================
-# PATIENT TIMELINE / HISTORY
-# ============================================================
-
-@app.get("/patients/{patient_id}/timeline")
-def patient_timeline(patient_id: str):
-
-    patient = get_patient_by_id(patient_id)
-
-    if not patient:
-        raise HTTPException(
-            status_code=404,
-            detail="Patient not found"
-        )
-
-    timeline = get_patient_timeline(patient_id)
-
-    return {
-        "success": True,
-        "patient_id": patient_id,
-        "timeline": timeline
-    }
-
-
-# ============================================================
-# PRIORITY QUEUE
-# ============================================================
-
-@app.get("/queue")
-def priority_queue():
-
-    patients = get_all_patients()
-
-    priority_order = {
-        "Critical": 1,
-        "Urgent": 2,
-        "Non-urgent": 3
-    }
-
-    patients.sort(
-        key=lambda patient: (
-            priority_order.get(patient.get("urgency"), 4),
-            -float(patient.get("risk_score") or 0)
-        )
-    )
-
-    return {
-        "success": True,
-        "count": len(patients),
-        "queue": patients
-    }
-
-
-# ============================================================
-# DASHBOARD
-# ============================================================
-
-@app.get("/dashboard")
-def dashboard():
-
-    patients = get_all_patients()
-
-    critical = 0
-    urgent = 0
-    non_urgent = 0
-
-    for patient in patients:
-
-        urgency = patient.get("urgency")
-
-        if urgency == "Critical":
-            critical += 1
-
-        elif urgency == "Urgent":
-            urgent += 1
-
-        elif urgency == "Non-urgent":
-            non_urgent += 1
-
-    return {
-        "success": True,
-        "total_patients": len(patients),
-        "critical": critical,
-        "urgent": urgent,
-        "non_urgent": non_urgent
-    }
-
-
-# ============================================================
-# API INFORMATION
-# ============================================================
-
-@app.get("/api/info")
-def api_info():
-
-    return {
-        "name": "MEDORA",
-        "version": "1.0.0",
-        "purpose": "AI-assisted emergency triage and patient prioritization",
-
-        "modules": [
-            "Emergency Triage",
-            "Patient Management",
-            "Priority Queue",
-            "Reassessment",
-            "History",
-            "Dashboard"
-        ],
-
-        "endpoints": {
-            "create_patient": "POST /patients",
-            "all_patients": "GET /patients",
-            "patient_details": "GET /patients/{patient_id}",
-            "reassessment": "PUT /patients/{patient_id}/reassess",
-            "timeline": "GET /patients/{patient_id}/timeline",
-            "priority_queue": "GET /queue",
-            "dashboard": "GET /dashboard"
-        }
-    }
-```
+<!DOCTYPE html> <html lang="en"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>MEDORA - Emergency Triage System</title> <link rel="stylesheet" href="style.css"> </head> <body> <header class="topbar">
+<div class="brand">
+    MEDORA
+</div>
+
+<div class="system-status">
+    <span class="status-dot"></span>
+    <span id="systemStatus">Checking...</span>
+</div>
+</header> <nav class="navbar">
+<button class="nav-btn active" data-page="dashboard">
+    Dashboard
+</button>
+
+<button class="nav-btn" data-page="triage">
+    Emergency Triage
+</button>
+
+<button class="nav-btn" data-page="queue">
+    Priority Queue
+</button>
+
+<button class="nav-btn" data-page="patients">
+    Patients
+</button>
+
+<button class="nav-btn" data-page="reassessment">
+    Reassessment
+</button>
+
+<button class="nav-btn" data-page="history">
+    History
+</button>
+
+<button class="nav-btn" data-page="unidentified">
+    Unidentified Patient
+</button>
+
+<button class="nav-btn" data-page="settings">
+    Settings
+</button>
+</nav> <main class="container">
+<section class="page-section">
+
+    <div class="section-header">
+        <div>
+            <h1>Emergency Triage Dashboard</h1>
+            <p>AI-assisted emergency patient assessment and prioritization</p>
+        </div>
+    </div>
+
+    <div class="card">
+
+        <div class="card-header">
+            <h2>Quick Actions</h2>
+        </div>
+
+        <div class="action-area">
+
+            <button
+                class="primary-button"
+                data-page="triage">
+                Start Emergency Triage
+            </button>
+
+            <button
+                class="secondary-button"
+                data-page="queue">
+                View Priority Queue
+            </button>
+
+            <button
+                class="secondary-button"
+                data-page="patients">
+                Patient Records
+            </button>
+
+        </div>
+
+    </div>
+
+    <div class="dashboard-grid">
+
+        <div class="card">
+            <div class="card-header">
+                <h2>Critical</h2>
+            </div>
+
+            <div class="dashboard-summary">
+                <span id="criticalCount">0</span>
+                <p>Patients requiring immediate attention</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>Urgent</h2>
+            </div>
+
+            <div class="dashboard-summary">
+                <span id="urgentCount">0</span>
+                <p>Patients requiring priority care</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>Non-Urgent</h2>
+            </div>
+
+            <div class="dashboard-summary">
+                <span id="nonUrgentCount">0</span>
+                <p>Patients requiring routine attention</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>Total Patients</h2>
+            </div>
+
+            <div class="dashboard-summary">
+                <span id="totalPatients">0</span>
+                <p>Patients currently registered</p>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="card">
+
+        <div class="card-header">
+            <h2>MEDORA</h2>
+        </div>
+
+        <p>
+            MEDORA is an AI-assisted emergency triage and patient
+            prioritization prototype designed to support healthcare
+            professionals in rapidly organizing emergency cases.
+        </p>
+
+        <p>
+            The system uses patient symptoms, vital signs, medical
+            history, pain score, GCS score and arrival mode to generate
+            an urgency category and priority score.
+        </p>
+
+        <p>
+            MEDORA is a decision-support prototype and does not replace
+            professional clinical judgment or diagnosis.
+        </p>
+
+    </div>
+
+</section>
+</main> <footer class="footer"> <p>MEDORA — AI-Assisted Emergency Triage System</p> </footer> <script src="script.js"></script> </body> </html>

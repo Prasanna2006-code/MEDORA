@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MEDORA - Emergency Triage</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<header class="topbar">
+    <div class="brand">
+        <h1>MEDORA</h1>
+        <span>AI-Assisted Emergency Triage</span>
+    </div>
+
+```
+<div class="system-status">
+    <span class="status-dot"></span>
+    System Online
+</div>
+```
+
+</header>
+
+<nav class="navbar">
+    <a href="dashboard.html" class="nav-btn">Dashboard</a>
+    <a href="emergency-triage.html" class="nav-btn active">Emergency Triage</a>
+    <a href="priority-queue.html" class="nav-btn">Priority Queue</a>
+    <a href="patients.html" class="nav-btn">Patients</a>
+    <a href="history.html" class="nav-btn">History</a>
+    <a href="settings.html" class="nav-btn">Settings</a>
+</nav>
+
+<main class="container">
+
+```
+<section class="page-section">
+
+    <div class="section-header">
+        <div>
+            <h2>Emergency Triage</h2>
+            <p>Enter patient information and vital signs for AI-assisted priority assessment.</p>
+        </div>
+
+        <button
+            type="button"
+            id="addPatientBtn"
+            class="secondary-button"
+            style="display:none;">
+            + Add Next Patient
+        </button>
+    </div>
+
+    <!-- Patient Information -->
+
+    <div class="card">
+
+        <div class="card-header">
+            <h3>Patient Information</h3>
+
+            <button
+                type="button"
+                id="voiceBtn"
+                class="voice-button">
+
+                <span class="voice-icon">●</span>
+                <span id="voiceText">Voice Input</span>
+
+            </button>
+        </div>
+
+        <div id="voiceStatus" class="voice-status"></div>
+
+        <div class="form-grid">
+
+            <div class="form-group">
+                <label for="name">Patient Name</label>
+                <input id="name" type="text" placeholder="Enter patient name">
+            </div>
+
+            <div class="form-group">
+                <label for="age">Age</label>
+                <input id="age" type="number" min="0" max="120" placeholder="Age">
+            </div>
+
+            <div class="form-group">
+                <label for="sex">Sex</label>
+                <select id="sex">
+                    <option value="">Select</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="arrival_mode">Arrival Mode</label>
+                <select id="arrival_mode">
+                    <option value="">Select</option>
+                    <option value="Ambulance">Ambulance</option>
+                    <option value="Wheelchair">Wheelchair</option>
+                    <option value="Transfer">Transfer</option>
+                    <option value="Walk-in">Walk-in</option>
+                </select>
+            </div>
+
+            <div class="form-group full-width">
+                <label for="symptoms">Symptoms / Chief Complaint</label>
+                <textarea
+                    id="symptoms"
+                    rows="3"
+                    placeholder="Describe the patient's symptoms"></textarea>
+            </div>
+
+            <div class="form-group full-width">
+                <label for="disorders">Existing Disorders / Comorbidities</label>
+                <textarea
+                    id="disorders"
+                    rows="2"
+                    placeholder="Diabetes, hypertension, asthma, etc."></textarea>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Vital Signs -->
+
+    <div class="card">
+
+        <div class="card-header">
+            <h3>Vital Signs & Clinical Indicators</h3>
+        </div>
+
+        <div class="form-grid">
+
+            <div class="form-group">
+                <label for="heart_rate">Heart Rate (bpm)</label>
+                <input id="heart_rate" type="number" placeholder="e.g. 82">
+            </div>
+
+            <div class="form-group">
+                <label for="systolic_bp">Systolic BP (mmHg)</label>
+                <input id="systolic_bp" type="number" placeholder="e.g. 120">
+            </div>
+
+            <div class="form-group">
+                <label for="diastolic_bp">Diastolic BP (mmHg)</label>
+                <input id="diastolic_bp" type="number" placeholder="e.g. 80">
+            </div>
+
+            <div class="form-group">
+                <label for="respiratory_rate">Respiratory Rate</label>
+                <input id="respiratory_rate" type="number" placeholder="e.g. 18">
+            </div>
+
+            <div class="form-group">
+                <label for="spo2">SpO₂ (%)</label>
+                <input id="spo2" type="number" step="0.1" placeholder="e.g. 98">
+            </div>
+
+            <div class="form-group">
+                <label for="temperature">Temperature (°C)</label>
+                <input id="temperature" type="number" step="0.1" placeholder="e.g. 37.0">
+            </div>
+
+            <div class="form-group">
+                <label for="pain_score">Pain Score (0–10)</label>
+                <input id="pain_score" type="number" min="0" max="10" placeholder="e.g. 5">
+            </div>
+
+            <div class="form-group">
+                <label for="gcs_score">GCS Score (3–15)</label>
+                <input id="gcs_score" type="number" min="3" max="15" placeholder="e.g. 15">
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Assessment -->
+
+    <div class="action-area">
+
+        <button
+            type="button"
+            id="assessBtn"
+            class="primary-button">
+            Assess Patient
+        </button>
+
+    </div>
+
+    <!-- Error -->
+
+    <div id="errorSection" class="error-card hidden">
+        <strong>Assessment Error</strong>
+        <p id="errorMessage"></p>
+    </div>
+
+    <!-- Result -->
+
+    <div id="resultSection" class="card result-card hidden">
+
+        <div class="result-header">
+
+            <div>
+                <h3>Triage Assessment Result</h3>
+                <p>AI-assisted emergency priority assessment</p>
+            </div>
+
+            <div id="urgencyResult" class="urgency-badge">
+                -
+            </div>
+
+        </div>
+
+        <div class="result-grid">
+
+            <div class="result-box">
+                <span class="result-label">Risk Score</span>
+                <strong id="riskScore">-</strong>
+            </div>
+
+            <div class="result-box">
+                <span class="result-label">Patient ID</span>
+                <strong id="patientId">-</strong>
+            </div>
+
+            <div class="result-box">
+                <span class="result-label">Queue Status</span>
+                <strong id="queuePriority">
+                    Saved to Priority Queue
+                </strong>
+            </div>
+
+        </div>
+
+        <div class="risk-section">
+
+            <h4>Risk Factors</h4>
+
+            <ul id="riskFactors"></ul>
+
+        </div>
+
+        <div class="result-actions">
+
+            <button
+                type="button"
+                id="resultAddPatientBtn"
+                class="secondary-button">
+                + Add Next Patient
+            </button>
+
+            <button
+                type="button"
+                id="viewQueueBtn"
+                class="primary-button">
+                View Priority Queue
+            </button>
+
+        </div>
+
+    </div>
+
+</section>
+```
+
+</main>
+
+<footer class="footer">
+    <p>
+        MEDORA is an AI-assisted emergency triage prototype.
+        It does not provide a medical diagnosis and does not replace professional clinical judgment.
+    </p>
+</footer>
+
+<script src="triage.js"></script>
+
+</body>
+</html>

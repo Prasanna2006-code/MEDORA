@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MEDORA - Reassessment</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<header class="topbar">
+    <div class="brand">MEDORA</div>
+
+```
+<div class="system-status">
+    <span class="status-dot"></span>
+    System Online
+</div>
+```
+
+</header>
+
+<nav class="navbar">
+    <a href="dashboard.html" class="nav-btn">Dashboard</a>
+    <a href="emergency-triage.html" class="nav-btn">Triage</a>
+    <a href="priority-queue.html" class="nav-btn">Priority Queue</a>
+    <a href="patients.html" class="nav-btn active">Patients</a>
+    <a href="history.html" class="nav-btn">History</a>
+    <a href="settings.html" class="nav-btn">Settings</a>
+</nav>
+
+<main class="container">
+
+```
+<section class="page-section">
+
+    <div class="section-header">
+        <div>
+            <h1>Patient Reassessment</h1>
+            <p>Update the patient's current condition and reassess urgency.</p>
+        </div>
+
+        <button class="secondary-button" onclick="goBack()">
+            Back to Patient
+        </button>
+    </div>
+
+    <div id="errorSection" class="error-card hidden">
+        <strong>Error</strong>
+        <p id="errorMessage"></p>
+    </div>
+
+    <div id="successSection" class="result-card hidden">
+        <div class="result-header">
+            <h2>Reassessment Complete</h2>
+        </div>
+
+        <div class="result-grid">
+
+            <div class="result-box">
+                <span class="result-label">Urgency</span>
+                <div id="resultUrgency" class="urgency-badge">
+                    -
+                </div>
+            </div>
+
+            <div class="result-box">
+                <span class="result-label">Risk Score</span>
+                <strong id="resultRiskScore">-</strong>
+            </div>
+
+            <div class="result-box">
+                <span class="result-label">Patient ID</span>
+                <strong id="resultPatientId">-</strong>
+            </div>
+
+        </div>
+
+        <div class="risk-section">
+            <h3>Risk Factors</h3>
+            <ul id="resultRiskFactors">
+                <li>No risk factors recorded.</li>
+            </ul>
+        </div>
+
+        <div class="result-actions">
+
+            <button
+                class="primary-button"
+                onclick="viewPatient()">
+                View Patient
+            </button>
+
+            <button
+                class="secondary-button"
+                onclick="viewQueue()">
+                View Priority Queue
+            </button>
+
+        </div>
+    </div>
+
+    <div id="loadingSection" class="card">
+        Loading patient information...
+    </div>
+
+    <div id="reassessmentContent" class="hidden">
+
+        <div class="card">
+
+            <div class="card-header">
+                <h2>Patient</h2>
+                <span id="patientIdDisplay"></span>
+            </div>
+
+            <div class="form-grid">
+
+                <div class="form-group">
+                    <label>Name</label>
+                    <input id="name" type="text" readonly>
+                </div>
+
+                <div class="form-group">
+                    <label>Age</label>
+                    <input id="age" type="text" readonly>
+                </div>
+
+                <div class="form-group">
+                    <label>Sex</label>
+                    <input id="sex" type="text" readonly>
+                </div>
+
+                <div class="form-group">
+                    <label>Arrival Mode</label>
+                    <input id="arrival_mode" type="text" readonly>
+                </div>
+
+                <div class="form-group full-width">
+                    <label>Current Symptoms</label>
+                    <textarea id="symptoms"></textarea>
+                </div>
+
+                <div class="form-group full-width">
+                    <label>Existing Disorders / Comorbidities</label>
+                    <textarea id="disorders"></textarea>
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="card">
+
+            <div class="card-header">
+                <h2>Updated Vital Signs</h2>
+            </div>
+
+            <div class="form-grid">
+
+                <div class="form-group">
+                    <label>Heart Rate</label>
+                    <input id="heart_rate" type="number" min="20" max="250">
+                </div>
+
+                <div class="form-group">
+                    <label>Systolic BP</label>
+                    <input id="systolic_bp" type="number" min="40" max="300">
+                </div>
+
+                <div class="form-group">
+                    <label>Diastolic BP</label>
+                    <input id="diastolic_bp" type="number" min="20" max="200">
+                </div>
+
+                <div class="form-group">
+                    <label>Respiratory Rate</label>
+                    <input id="respiratory_rate" type="number" min="5" max="80">
+                </div>
+
+                <div class="form-group">
+                    <label>SpO₂</label>
+                    <input id="spo2" type="number" min="50" max="100" step="0.1">
+                </div>
+
+                <div class="form-group">
+                    <label>Temperature</label>
+                    <input id="temperature" type="number" min="25" max="45" step="0.1">
+                </div>
+
+                <div class="form-group">
+                    <label>Pain Score</label>
+                    <input id="pain_score" type="number" min="0" max="10">
+                </div>
+
+                <div class="form-group">
+                    <label>GCS Score</label>
+                    <input id="gcs_score" type="number" min="3" max="15">
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="action-area">
+
+            <button
+                class="primary-button"
+                id="reassessBtn">
+                Reassess Patient
+            </button>
+
+        </div>
+
+    </div>
+
+</section>
+```
+
+</main>
+
+<footer class="footer">
+    MEDORA is an AI-assisted triage decision-support prototype.
+    It does not provide a diagnosis and does not replace professional clinical judgment.
+</footer>
+
+<script>
+
+const API_URL = "http://127.0.0.1:8000";
+
+const params = new URLSearchParams(window.location.search);
+const patientId = params.get("id");
+
+const loadingSection =
+    document.getElementById("loadingSection");
+
+const reassessmentContent =
+    document.getElementById("reassessmentContent");
+
+const errorSection =
+    document.getElementById("errorSection");
+
+const errorMessage =
+    document.getElementById("errorMessage");
+
+const successSection =
+    document.getElementById("successSection");
+
+const reassessBtn =
+    document.getElementById("reassessBtn");
+
+
+function setValue(id, value) {
+
+    const element = document.getElementById(id);
+
+    if (element) {
+        element.value =
+            value !== undefined && value !== null
+                ? value
+                : "";
+    }
+}
+
+
+function showError(message) {
+
+    errorMessage.textContent = message;
+
+    errorSection.classList.remove("hidden");
+}
+
+
+async function loadPatient() {
+
+    if (!patientId) {
+
+        loadingSection.classList.add("hidden");
+
+        showError("No patient ID was provided.");
+
+        return;
+    }
+
+    try {
+
+        const response =
+            await fetch(
+                `${API_URL}/patients/${encodeURIComponent(patientId)}`
+            );
+
+        if (!response.ok) {
+            throw new Error("Patient record not found.");
+        }
+
+        const data = await response.json();
+
+        const patient =
+            data.patient ||
+            data;
+
+        setValue(
+            "patientIdDisplay",
+            patient.patient_id || patient.id || patientId
+        );
+
+        document.getElementById("patientIdDisplay").textContent =
+            patient.patient_id || patient.id || patientId;
+
+        setValue("name", patient.name || "Unknown");
+        setValue("age", patient.age);
+        setValue("sex", patient.sex);
+        setValue("arrival_mode", patient.arrival_mode);
+
+        setValue("symptoms", patient.symptoms);
+        setValue("disorders", patient.disorders);
+
+        setValue("heart_rate", patient.heart_rate);
+        setValue("systolic_bp", patient.systolic_bp);
+        setValue("diastolic_bp", patient.diastolic_bp);
+        setValue("respiratory_rate", patient.respiratory_rate);
+        setValue("spo2", patient.spo2);
+        setValue("temperature", patient.temperature);
+        setValue("pain_score", patient.pain_score);
+        setValue("gcs_score", patient.gcs_score);
+
+        loadingSection.classList.add("hidden");
+
+        reassessmentContent.classList.remove("hidden");
+
+    } catch (error) {
+
+        loadingSection.classList.add("hidden");
+
+        showError(
+            error.message ||
+            "Unable to load patient."
+        );
+    }
+}
+
+
+async function reassessPatient() {
+
+    errorSection.classList.add("hidden");
+
+    const payload = {
+
+        symptoms:
+            document.getElementById("symptoms").value.trim(),
+
+        disorders:
+            document.getElementById("disorders").value.trim(),
+
+        heart_rate:
+            Number(document.getElementById("heart_rate").value),
+
+        systolic_bp:
+            Number(document.getElementById("systolic_bp").value),
+
+        diastolic_bp:
+            Number(document.getElementById("diastolic_bp").value),
+
+        respiratory_rate:
+            Number(document.getElementById("respiratory_rate").value),
+
+        spo2:
+            Number(document.getElementById("spo2").value),
+
+        temperature:
+            Number(document.getElementById("temperature").value),
+
+        pain_score:
+            Number(document.getElementById("pain_score").value),
+
+        gcs_score:
+            Number(document.getElementById("gcs_score").value)
+    };
+
+    const requiredFields = [
+        "heart_rate",
+        "systolic_bp",
+        "diastolic_bp",
+        "respiratory_rate",
+        "spo2",
+        "temperature",
+        "pain_score",
+        "gcs_score"
+    ];
+
+    for (const field of requiredFields) {
+
+        if (
+            document.getElementById(field).value === ""
+        ) {
+
+            showError(
+                "Please fill all vital signs before reassessment."
+            );
+
+            return;
+        }
+    }
+
+    reassessBtn.disabled = true;
+    reassessBtn.textContent = "Reassessing...";
+
+    try {
+
+        const response =
+            await fetch(
+                `${API_URL}/patients/${encodeURIComponent(patientId)}/reassess`,
+                {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(payload)
+                }
+            );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                data.message ||
+                "Reassessment failed."
+            );
+        }
+
+        const result =
+            data.result ||
+            data.assessment ||
+            data;
+
+        const urgency =
+            result.urgency ||
+            data.urgency ||
+            result.triage_acuity ||
+            "Unknown";
+
+        const riskScore =
+            result.risk_score !== undefined
+                ? result.risk_score
+                : data.risk_score;
+
+        const factors =
+            result.risk_factors ||
+            data.risk_factors ||
+            [];
+
+        document.getElementById("resultUrgency").textContent =
+            urgency;
+
+        document.getElementById("resultUrgency").className =
+            `urgency-badge ${getUrgencyClass(urgency)}`;
+
+        document.getElementById("resultRiskScore").textContent =
+            riskScore !== undefined
+                ? riskScore
+                : "-";
+
+        document.getElementById("resultPatientId").textContent =
+            patientId;
+
+        const factorList =
+            document.getElementById("resultRiskFactors");
+
+        if (Array.isArray(factors) && factors.length > 0) {
+
+            factorList.innerHTML =
+                factors
+                    .map(
+                        factor =>
+                            `<li>${escapeHtml(factor)}</li>`
+                    )
+                    .join("");
+
+        } else {
+
+            factorList.innerHTML =
+                "<li>No risk factors recorded.</li>";
+        }
+
+        reassessmentContent.classList.add("hidden");
+
+        successSection.classList.remove("hidden");
+
+    } catch (error) {
+
+        showError(
+            error.message ||
+            "Unable to reassess patient."
+        );
+
+    } finally {
+
+        reassessBtn.disabled = false;
+        reassessBtn.textContent = "Reassess Patient";
+    }
+}
+
+
+function getUrgencyClass(urgency) {
+
+    const value =
+        String(urgency).toLowerCase();
+
+    if (value.includes("critical")) {
+        return "critical";
+    }
+
+    if (value.includes("urgent")) {
+        return "urgent";
+    }
+
+    return "non-urgent";
+}
+
+
+function escapeHtml(value) {
+
+    return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+
+function goBack() {
+
+    window.location.href =
+        `patient-details.html?id=${encodeURIComponent(patientId)}`;
+}
+
+
+function viewPatient() {
+
+    window.location.href =
+        `patient-details.html?id=${encodeURIComponent(patientId)}`;
+}
+
+
+function viewQueue() {
+
+    window.location.href =
+        "priority-queue.html";
+}
+
+
+reassessBtn.addEventListener(
+    "click",
+    reassessPatient
+);
+
+loadPatient();
+
+</script>
+
+</body>
+</html>
