@@ -1,208 +1,81 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import sqlite3
 from datetime import datetime
 import uuid
-from schemas import PatientInput
+
+from database import init_db
+from schemas import (
+    PatientInput,
+    ReassessmentInput,
+    PatientStatusUpdate,
+    UnidentifiedPatientInput,
+    AlertInput
+)
+
 from triage import calculate_triage
 
-app = FastAPI(title="MEDORA", version="1.0")
+from models import (
+    create_patient_record,
+    get_patient_by_id,
+    get_all_patients,
+    update_patient,
+    update_patient_status,
+    add_assessment,
+    get_patient_timeline,
+    create_unidentified_patient,
+    get_unidentified_patient,
+    get_all_unidentified_patients,
+    create_alert,
+    get_alerts,
+    mark_alert_read
+)
 
-# Allow frontend to communicate with FastAPI
+from priority_queue import build_priority_queue, get_queue_summary
+
+from alerts import (
+    create_critical_alert,
+    create_urgency_change_alert
+)
+
+
+app = FastAPI(
+    title="MEDORA",
+    description="AI-Assisted Hospital Emergency Triage and Patient Prioritization System",
+    version="1.0.0"
+)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
-
-DB_NAME = "medora.db"
-
-
-# -------------------------
-# DATABASE
-# -------------------------
-
-def get_db():
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def init_db():
-    conn = get_db()
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS patients (
-            id TEXT PRIMARY KEY,
-            name TEXT,
-            age INTEGER,
-            sex TEXT,
-            symptoms TEXT,
-            disorders TEXT,
-            heart_rate INTEGER,
-            systolic_bp INTEGER,
-            diastolic_bp INTEGER,
-            respiratory_rate INTEGER,
-            spo2 REAL,
-            temperature REAL,
-            pain_score INTEGER,
-            gcs_score INTEGER,
-            arrival_mode TEXT,
-            urgency TEXT,
-            risk_score REAL,
-            risk_factors TEXT,
-            created_at TEXT,
-            updated_at TEXT
-        )
-    """)
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS assessments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            patient_id TEXT,
-            urgency TEXT,
-            risk_score REAL,
-            risk_factors TEXT,
-            timestamp TEXT,
-            FOREIGN KEY(patient_id) REFERENCES patients(id)
-        )
-    """)
-
-    conn.commit()
-    conn.close()
 
 
 init_db()
 
 
 # -------------------------
-# INPUT SCHEMA
+# ROOT
 # -------------------------
 
-class PatientInput(BaseModel):
-    name: str = "Unknown"
-    age: int
-    sex: str
-    symptoms: str
-    disorders: str = ""
-
-    heart_rate: int
-    systolic_bp: int
-    diastolic_bp: int
-    respiratory_rate: int
-    spo2: float
-    temperature: float
-
-    pain_score: int
-    gcs_score: int
-
-    arrival_mode: str = "Walk-in"
+@app.get("/")
+def root():
+    return {
+        "system": "MEDORA",
+        "status": "online",
+        "message": "MEDORA Emergency Triage API is running"
+    }
 
 
-# -------------------------
-# TRIAGE ENGINE
-# -------------------------
-
-def calculate_triage(patient):
-    score = 0
-    risk_factors = []
-
-    # Oxygen
-    if patient.spo2 < 90:
-        score += 5
-        risk_factors.append("Severely low SpO₂")
-    elif patient.spo2 < 94:
-        score += 3
-        risk_factors.append("Low SpO₂")
-
-    # Heart rate
-    if patient.heart_rate > 120:
-        score += 3
-        risk_factors.append("High heart rate")
-    elif patient.heart_rate < 50:
-        score += 3
-        risk_factors.append("Low heart rate")
-
-    # Respiratory rate
-    if patient.respiratory_rate > 30:
-        score += 4
-        risk_factors.append("High respiratory rate")
-    elif patient.respiratory_rate < 10:
-        score += 4
-        risk_factors.append("Low respiratory rate")
-
-    # Blood pressure
-    if patient.systolic_bp < 90:
-        score += 5
-        risk_factors.append("Low systolic blood pressure")
-
-    if patient.systolic_bp > 180:
-        score += 4
-        risk_factors.append("Very high systolic blood pressure")
-
-    # Temperature
-    if patient.temperature >= 39.5:
-        score += 3
-        risk_factors.append("High temperature")
-
-    # GCS
-    if patient.gcs_score < 9:
-        score += 6
-        risk_factors.append("Severely reduced GCS")
-    elif patient.gcs_score < 13:
-        score += 4
-        risk_factors.append("Reduced GCS")
-
-    # Pain
-    if patient.pain_score >= 8:
-        score += 2
-        risk_factors.append("Severe pain")
-
-    # Age
-    if patient.age >= 75:
-        score += 2
-        risk_factors.append("Advanced age")
-    elif patient.age <= 5:
-        score += 2
-        risk_factors.append("Very young age")
-
-    # Arrival mode
-    if patient.arrival_mode.lower() == "ambulance":
-        score += 1
-        risk_factors.append("Arrived by ambulance")
-
-    # Symptoms
-    symptoms = patient.symptoms.lower()
-
-    emergency_keywords = [
-        "chest pain",
-        "difficulty breathing",
-        "shortness of breath",
-        "unconscious",
-        "seizure",
-        "severe bleeding",
-        "stroke",
-        "paralysis"
-    ]
-
-    for keyword in emergency_keywords:
-        if keyword in symptoms:
-            score += 5
-            risk_factors.append(f"Warning symptom: {keyword}")
-            break
-
-    # Final urgency
-    if score >= 8:
-        urgency = "Critical"
-    elif score >= 4:
-        urgency = "Urgent"
-    else:
-        urgency = "Non-urgent"
-
-    return urgency, score, risk_factors
+@app.get("/health")
+def health_check():
+    return {
+        "status": "healthy",
+        "service": "MEDORA API"
+    }
 
 
 # -------------------------
@@ -212,71 +85,65 @@ def calculate_triage(patient):
 @app.post("/patients")
 def create_patient(patient: PatientInput):
 
-    patient_id = "MED-" + uuid.uuid4().hex[:6].upper()
-    now = datetime.now().isoformat()
+    result = calculate_triage(patient)
 
-    urgency, risk_score, risk_factors = calculate_triage(patient)
+    patient_id = "MED-" + uuid.uuid4().hex[:8].upper()
 
-    conn = get_db()
+    now = datetime.now().isoformat(timespec="seconds")
 
-    conn.execute("""
-        INSERT INTO patients (
-            id, name, age, sex, symptoms, disorders,
-            heart_rate, systolic_bp, diastolic_bp,
-            respiratory_rate, spo2, temperature,
-            pain_score, gcs_score, arrival_mode,
-            urgency, risk_score, risk_factors,
-            created_at, updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        patient_id,
-        patient.name,
-        patient.age,
-        patient.sex,
-        patient.symptoms,
-        patient.disorders,
-        patient.heart_rate,
-        patient.systolic_bp,
-        patient.diastolic_bp,
-        patient.respiratory_rate,
-        patient.spo2,
-        patient.temperature,
-        patient.pain_score,
-        patient.gcs_score,
-        patient.arrival_mode,
-        urgency,
-        risk_score,
-        ", ".join(risk_factors),
-        now,
-        now
-    ))
+    create_patient_record(
+        patient_id=patient_id,
+        name=patient.name,
+        age=patient.age,
+        sex=patient.sex,
+        symptoms=patient.symptoms,
+        disorders=patient.disorders,
+        heart_rate=patient.heart_rate,
+        systolic_bp=patient.systolic_bp,
+        diastolic_bp=patient.diastolic_bp,
+        respiratory_rate=patient.respiratory_rate,
+        spo2=patient.spo2,
+        temperature=patient.temperature,
+        pain_score=patient.pain_score,
+        gcs_score=patient.gcs_score,
+        arrival_mode=patient.arrival_mode,
+        urgency=result["urgency"],
+        risk_score=result["risk_score"],
+        risk_factors=", ".join(result["risk_factors"]),
+        created_at=now,
+        updated_at=now
+    )
 
-    conn.execute("""
-        INSERT INTO assessments (
+    add_assessment(
+        patient_id=patient_id,
+        urgency=result["urgency"],
+        risk_score=result["risk_score"],
+        risk_factors=", ".join(result["risk_factors"]),
+        timestamp=now,
+        heart_rate=patient.heart_rate,
+        systolic_bp=patient.systolic_bp,
+        diastolic_bp=patient.diastolic_bp,
+        respiratory_rate=patient.respiratory_rate,
+        spo2=patient.spo2,
+        temperature=patient.temperature,
+        pain_score=patient.pain_score,
+        gcs_score=patient.gcs_score,
+        symptoms=patient.symptoms
+    )
+
+    if result["urgency"] == "Critical":
+        create_critical_alert(
             patient_id,
-            urgency,
-            risk_score,
-            risk_factors,
-            timestamp
+            result["risk_score"],
+            result["risk_factors"]
         )
-        VALUES (?, ?, ?, ?, ?)
-    """, (
-        patient_id,
-        urgency,
-        risk_score,
-        ", ".join(risk_factors),
-        now
-    ))
-
-    conn.commit()
-    conn.close()
 
     return {
+        "success": True,
         "patient_id": patient_id,
-        "urgency": urgency,
-        "risk_score": risk_score,
-        "risk_factors": risk_factors,
+        "urgency": result["urgency"],
+        "risk_score": result["risk_score"],
+        "risk_factors": result["risk_factors"],
         "timestamp": now
     }
 
@@ -286,42 +153,25 @@ def create_patient(patient: PatientInput):
 # -------------------------
 
 @app.get("/patients")
-def get_patients():
+def patients():
 
-    conn = get_db()
+    records = get_all_patients()
 
-    patients = conn.execute("""
-        SELECT *
-        FROM patients
-        ORDER BY
-            CASE urgency
-                WHEN 'Critical' THEN 1
-                WHEN 'Urgent' THEN 2
-                WHEN 'Non-urgent' THEN 3
-            END,
-            updated_at DESC
-    """).fetchall()
-
-    conn.close()
-
-    return [dict(patient) for patient in patients]
+    return {
+        "success": True,
+        "count": len(records),
+        "patients": records
+    }
 
 
 # -------------------------
-# GET ONE PATIENT
+# GET PATIENT
 # -------------------------
 
 @app.get("/patients/{patient_id}")
-def get_patient(patient_id: str):
+def patient_details(patient_id: str):
 
-    conn = get_db()
-
-    patient = conn.execute(
-        "SELECT * FROM patients WHERE id = ?",
-        (patient_id,)
-    ).fetchone()
-
-    conn.close()
+    patient = get_patient_by_id(patient_id)
 
     if not patient:
         raise HTTPException(
@@ -329,7 +179,10 @@ def get_patient(patient_id: str):
             detail="Patient not found"
         )
 
-    return dict(patient)
+    return {
+        "success": True,
+        "patient": patient
+    }
 
 
 # -------------------------
@@ -339,99 +192,128 @@ def get_patient(patient_id: str):
 @app.put("/patients/{patient_id}/reassess")
 def reassess_patient(
     patient_id: str,
-    patient: PatientInput
+    reassessment: PatientInput
 ):
 
-    conn = get_db()
+    existing_patient = get_patient_by_id(patient_id)
 
-    existing = conn.execute(
-        "SELECT * FROM patients WHERE id = ?",
-        (patient_id,)
-    ).fetchone()
-
-    if not existing:
-        conn.close()
-
+    if not existing_patient:
         raise HTTPException(
             status_code=404,
             detail="Patient not found"
         )
 
-    urgency, risk_score, risk_factors = calculate_triage(patient)
+    old_urgency = existing_patient["urgency"]
 
-    now = datetime.now().isoformat()
+    result = calculate_triage(reassessment)
 
-    conn.execute("""
-        UPDATE patients
-        SET
-            name = ?,
-            age = ?,
-            sex = ?,
-            symptoms = ?,
-            disorders = ?,
-            heart_rate = ?,
-            systolic_bp = ?,
-            diastolic_bp = ?,
-            respiratory_rate = ?,
-            spo2 = ?,
-            temperature = ?,
-            pain_score = ?,
-            gcs_score = ?,
-            arrival_mode = ?,
-            urgency = ?,
-            risk_score = ?,
-            risk_factors = ?,
-            updated_at = ?
-        WHERE id = ?
-    """, (
-        patient.name,
-        patient.age,
-        patient.sex,
-        patient.symptoms,
-        patient.disorders,
-        patient.heart_rate,
-        patient.systolic_bp,
-        patient.diastolic_bp,
-        patient.respiratory_rate,
-        patient.spo2,
-        patient.temperature,
-        patient.pain_score,
-        patient.gcs_score,
-        patient.arrival_mode,
-        urgency,
-        risk_score,
-        ", ".join(risk_factors),
-        now,
-        patient_id
-    ))
+    now = datetime.now().isoformat(timespec="seconds")
 
-    # Preserve previous assessment
-    conn.execute("""
-        INSERT INTO assessments (
+    update_patient(
+        patient_id=patient_id,
+        name=reassessment.name,
+        age=reassessment.age,
+        sex=reassessment.sex,
+        symptoms=reassessment.symptoms,
+        disorders=reassessment.disorders,
+        heart_rate=reassessment.heart_rate,
+        systolic_bp=reassessment.systolic_bp,
+        diastolic_bp=reassessment.diastolic_bp,
+        respiratory_rate=reassessment.respiratory_rate,
+        spo2=reassessment.spo2,
+        temperature=reassessment.temperature,
+        pain_score=reassessment.pain_score,
+        gcs_score=reassessment.gcs_score,
+        arrival_mode=reassessment.arrival_mode,
+        urgency=result["urgency"],
+        risk_score=result["risk_score"],
+        risk_factors=", ".join(result["risk_factors"]),
+        updated_at=now
+    )
+
+    add_assessment(
+        patient_id=patient_id,
+        urgency=result["urgency"],
+        risk_score=result["risk_score"],
+        risk_factors=", ".join(result["risk_factors"]),
+        timestamp=now,
+        heart_rate=reassessment.heart_rate,
+        systolic_bp=reassessment.systolic_bp,
+        diastolic_bp=reassessment.diastolic_bp,
+        respiratory_rate=reassessment.respiratory_rate,
+        spo2=reassessment.spo2,
+        temperature=reassessment.temperature,
+        pain_score=reassessment.pain_score,
+        gcs_score=reassessment.gcs_score,
+        symptoms=reassessment.symptoms
+    )
+
+    if old_urgency != result["urgency"]:
+
+        create_urgency_change_alert(
             patient_id,
-            urgency,
-            risk_score,
-            risk_factors,
-            timestamp
+            old_urgency,
+            result["urgency"]
         )
-        VALUES (?, ?, ?, ?, ?)
-    """, (
-        patient_id,
-        urgency,
-        risk_score,
-        ", ".join(risk_factors),
-        now
-    ))
 
-    conn.commit()
-    conn.close()
+    if result["urgency"] == "Critical":
+
+        create_critical_alert(
+            patient_id,
+            result["risk_score"],
+            result["risk_factors"]
+        )
 
     return {
+        "success": True,
         "patient_id": patient_id,
-        "urgency": urgency,
-        "risk_score": risk_score,
-        "risk_factors": risk_factors,
+        "urgency": result["urgency"],
+        "risk_score": result["risk_score"],
+        "risk_factors": result["risk_factors"],
         "timestamp": now
+    }
+
+
+# -------------------------
+# PATIENT STATUS
+# -------------------------
+
+@app.put("/patients/{patient_id}/status")
+def change_patient_status(
+    patient_id: str,
+    status_data: PatientStatusUpdate
+):
+
+    patient = get_patient_by_id(patient_id)
+
+    if not patient:
+        raise HTTPException(
+            status_code=404,
+            detail="Patient not found"
+        )
+
+    allowed_statuses = [
+        "Waiting",
+        "In Treatment",
+        "Admitted",
+        "Discharged"
+    ]
+
+    if status_data.status not in allowed_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Status must be one of: {allowed_statuses}"
+        )
+
+    update_patient_status(
+        patient_id,
+        status_data.status
+    )
+
+    return {
+        "success": True,
+        "patient_id": patient_id,
+        "status": status_data.status
     }
 
 
@@ -440,70 +322,210 @@ def reassess_patient(
 # -------------------------
 
 @app.get("/patients/{patient_id}/timeline")
-def get_timeline(patient_id: str):
+def patient_timeline(patient_id: str):
 
-    conn = get_db()
+    patient = get_patient_by_id(patient_id)
 
-    timeline = conn.execute("""
-        SELECT
-            urgency,
-            risk_score,
-            risk_factors,
-            timestamp
-        FROM assessments
-        WHERE patient_id = ?
-        ORDER BY timestamp ASC
-    """, (patient_id,)).fetchall()
+    if not patient:
+        raise HTTPException(
+            status_code=404,
+            detail="Patient not found"
+        )
 
-    conn.close()
+    timeline = get_patient_timeline(patient_id)
 
-    return [dict(item) for item in timeline]
+    return {
+        "success": True,
+        "patient_id": patient_id,
+        "timeline": timeline
+    }
 
 
 # -------------------------
-# DASHBOARD STATISTICS
+# PRIORITY QUEUE
+# -------------------------
+
+@app.get("/queue")
+def priority_queue():
+
+    queue = build_priority_queue()
+
+    return {
+        "success": True,
+        "count": len(queue),
+        "queue": queue
+    }
+
+
+@app.get("/queue/summary")
+def queue_summary():
+
+    return {
+        "success": True,
+        **get_queue_summary()
+    }
+
+
+# -------------------------
+# DASHBOARD
 # -------------------------
 
 @app.get("/dashboard")
 def dashboard():
 
-    conn = get_db()
-
-    total = conn.execute(
-        "SELECT COUNT(*) FROM patients"
-    ).fetchone()[0]
-
-    critical = conn.execute(
-        "SELECT COUNT(*) FROM patients WHERE urgency = 'Critical'"
-    ).fetchone()[0]
-
-    urgent = conn.execute(
-        "SELECT COUNT(*) FROM patients WHERE urgency = 'Urgent'"
-    ).fetchone()[0]
-
-    non_urgent = conn.execute(
-        "SELECT COUNT(*) FROM patients WHERE urgency = 'Non-urgent'"
-    ).fetchone()[0]
-
-    conn.close()
+    summary = get_queue_summary()
 
     return {
-        "total_patients": total,
-        "critical": critical,
-        "urgent": urgent,
-        "non_urgent": non_urgent
+        "success": True,
+        "total_patients": summary["total"],
+        "critical": summary["critical"],
+        "urgent": summary["urgent"],
+        "non_urgent": summary["non_urgent"],
+        "waiting": summary["waiting"],
+        "in_treatment": summary["in_treatment"]
     }
 
 
 # -------------------------
-# HEALTH CHECK
+# UNIDENTIFIED PATIENT
 # -------------------------
 
-@app.get("/")
-def root():
+@app.post("/unidentified-patients")
+def add_unidentified_patient(
+    patient: UnidentifiedPatientInput
+):
+
+    temporary_id = "UNK-" + uuid.uuid4().hex[:8].upper()
+
+    now = datetime.now().isoformat(timespec="seconds")
+
+    create_unidentified_patient(
+        temporary_id=temporary_id,
+        estimated_age=patient.estimated_age,
+        sex=patient.sex,
+        identifying_notes=patient.identifying_notes,
+        created_at=now,
+        updated_at=now
+    )
 
     return {
-        "system": "MEDORA",
-        "status": "running",
-        "description": "AI-assisted emergency triage system"
+        "success": True,
+        "temporary_id": temporary_id,
+        "message": "Unidentified patient registered"
+    }
+
+
+@app.get("/unidentified-patients")
+def unidentified_patients():
+
+    patients = get_all_unidentified_patients()
+
+    return {
+        "success": True,
+        "count": len(patients),
+        "patients": patients
+    }
+
+
+@app.get("/unidentified-patients/{temporary_id}")
+def unidentified_patient_details(
+    temporary_id: str
+):
+
+    patient = get_unidentified_patient(temporary_id)
+
+    if not patient:
+        raise HTTPException(
+            status_code=404,
+            detail="Unidentified patient not found"
+        )
+
+    return {
+        "success": True,
+        "patient": patient
+    }
+
+
+# -------------------------
+# ALERTS
+# -------------------------
+
+@app.get("/alerts")
+def alerts():
+
+    return {
+        "success": True,
+        "alerts": get_alerts()
+    }
+
+
+@app.get("/alerts/unread")
+def unread_alerts():
+
+    return {
+        "success": True,
+        "alerts": get_alerts(unread_only=True)
+    }
+
+
+@app.post("/alerts")
+def add_alert(alert: AlertInput):
+
+    now = datetime.now().isoformat(timespec="seconds")
+
+    create_alert(
+        patient_id=alert.patient_id,
+        alert_type=alert.alert_type,
+        message=alert.message,
+        severity=alert.severity,
+        created_at=now
+    )
+
+    return {
+        "success": True,
+        "message": "Alert created"
+    }
+
+
+@app.put("/alerts/{alert_id}/read")
+def read_alert(alert_id: int):
+
+    success = mark_alert_read(alert_id)
+
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail="Alert not found"
+        )
+
+    return {
+        "success": True,
+        "alert_id": alert_id,
+        "message": "Alert marked as read"
+    }
+
+
+# -------------------------
+# API INFORMATION
+# -------------------------
+
+@app.get("/api/info")
+def api_info():
+
+    return {
+        "name": "MEDORA",
+        "version": "1.0.0",
+        "purpose": "AI-assisted emergency triage and patient prioritization",
+
+        "modules": [
+            "Emergency Triage",
+            "Patient Management",
+            "AI Triage",
+            "Priority Queue",
+            "Reassessment",
+            "History",
+            "Dashboard",
+            "Unidentified Patient",
+            "Alerts"
+        ]
     }

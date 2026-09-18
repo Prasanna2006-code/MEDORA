@@ -6,6 +6,7 @@ numpy
 scikit-learn
 xgboost
 joblib
+openpyxl
 python-multipart
 pillow
 pytesseract

@@ -1,19 +1,15 @@
-def calculate_triage(patient):
-    """
-    MEDORA AI-assisted triage engine.
+# ============================================================
+# MEDORA AI-ASSISTED TRIAGE ENGINE
+# ============================================================
 
-    Returns:
-        urgency
-        risk_score
-        risk_factors
-    """
+def calculate_triage(patient):
 
     score = 0
     risk_factors = []
 
-    # -------------------------
-    # SpO2
-    # -------------------------
+    # --------------------------------------------------------
+    # OXYGEN SATURATION
+    # --------------------------------------------------------
 
     if patient.spo2 < 90:
         score += 5
@@ -23,9 +19,10 @@ def calculate_triage(patient):
         score += 3
         risk_factors.append("Low SpO₂")
 
-    # -------------------------
-    # Heart Rate
-    # -------------------------
+
+    # --------------------------------------------------------
+    # HEART RATE
+    # --------------------------------------------------------
 
     if patient.heart_rate > 120:
         score += 3
@@ -35,9 +32,10 @@ def calculate_triage(patient):
         score += 3
         risk_factors.append("Low heart rate")
 
-    # -------------------------
-    # Respiratory Rate
-    # -------------------------
+
+    # --------------------------------------------------------
+    # RESPIRATORY RATE
+    # --------------------------------------------------------
 
     if patient.respiratory_rate > 30:
         score += 4
@@ -47,9 +45,10 @@ def calculate_triage(patient):
         score += 4
         risk_factors.append("Low respiratory rate")
 
-    # -------------------------
-    # Blood Pressure
-    # -------------------------
+
+    # --------------------------------------------------------
+    # BLOOD PRESSURE
+    # --------------------------------------------------------
 
     if patient.systolic_bp < 90:
         score += 5
@@ -59,17 +58,19 @@ def calculate_triage(patient):
         score += 4
         risk_factors.append("Very high systolic blood pressure")
 
-    # -------------------------
-    # Temperature
-    # -------------------------
+
+    # --------------------------------------------------------
+    # TEMPERATURE
+    # --------------------------------------------------------
 
     if patient.temperature >= 39.5:
         score += 3
         risk_factors.append("High temperature")
 
-    # -------------------------
+
+    # --------------------------------------------------------
     # GCS
-    # -------------------------
+    # --------------------------------------------------------
 
     if patient.gcs_score < 9:
         score += 6
@@ -79,17 +80,19 @@ def calculate_triage(patient):
         score += 4
         risk_factors.append("Reduced GCS")
 
-    # -------------------------
-    # Pain
-    # -------------------------
+
+    # --------------------------------------------------------
+    # PAIN
+    # --------------------------------------------------------
 
     if patient.pain_score >= 8:
         score += 2
         risk_factors.append("Severe pain")
 
-    # -------------------------
-    # Age
-    # -------------------------
+
+    # --------------------------------------------------------
+    # AGE
+    # --------------------------------------------------------
 
     if patient.age >= 75:
         score += 2
@@ -99,17 +102,19 @@ def calculate_triage(patient):
         score += 2
         risk_factors.append("Very young age")
 
-    # -------------------------
-    # Arrival Mode
-    # -------------------------
+
+    # --------------------------------------------------------
+    # ARRIVAL MODE
+    # --------------------------------------------------------
 
     if patient.arrival_mode.lower() == "ambulance":
         score += 1
         risk_factors.append("Arrived by ambulance")
 
-    # -------------------------
-    # Symptom Analysis
-    # -------------------------
+
+    # --------------------------------------------------------
+    # SYMPTOMS
+    # --------------------------------------------------------
 
     symptoms = patient.symptoms.lower()
 
@@ -121,21 +126,28 @@ def calculate_triage(patient):
         "seizure": "Seizure",
         "severe bleeding": "Severe bleeding",
         "stroke": "Possible stroke symptoms",
-        "paralysis": "Paralysis"
+        "paralysis": "Paralysis",
+        "fainting": "Fainting",
+        "severe headache": "Severe headache",
+        "confusion": "Confusion"
     }
 
     for keyword, description in emergency_keywords.items():
 
         if keyword in symptoms:
+
             score += 5
             risk_factors.append(description)
+
+            # Prevent multiple symptom keyword scores
             break
 
-    # -------------------------
-    # Comorbidity Analysis
-    # -------------------------
 
-    disorders = patient.disorders.lower()
+    # --------------------------------------------------------
+    # EXISTING CONDITIONS
+    # --------------------------------------------------------
+
+    disorders = (patient.disorders or "").lower()
 
     high_risk_conditions = [
         "heart disease",
@@ -154,6 +166,7 @@ def calculate_triage(patient):
         if condition in disorders:
             detected_conditions.append(condition)
 
+
     if detected_conditions:
 
         score += min(len(detected_conditions), 3)
@@ -163,29 +176,48 @@ def calculate_triage(patient):
             + ", ".join(detected_conditions)
         )
 
-    # -------------------------
-    # Urgency Classification
-    # -------------------------
+
+    # --------------------------------------------------------
+    # URGENCY CLASSIFICATION
+    # --------------------------------------------------------
 
     if score >= 8:
+
         urgency = "Critical"
 
     elif score >= 4:
+
         urgency = "Urgent"
 
     else:
+
         urgency = "Non-urgent"
 
-    # -------------------------
-    # Risk Score
-    # -------------------------
 
-    # Convert the rule score to a simple 0-100 scale.
-    risk_score = min(round((score / 20) * 100, 1), 100)
+    # --------------------------------------------------------
+    # RISK SCORE
+    # --------------------------------------------------------
 
-    # Make sure at least one explanation exists.
+    risk_score = min(
+        round((score / 20) * 100, 1),
+        100
+    )
+
+
+    # --------------------------------------------------------
+    # DEFAULT MESSAGE
+    # --------------------------------------------------------
+
     if not risk_factors:
-        risk_factors.append("No major warning indicators detected")
+
+        risk_factors.append(
+            "No major warning indicators detected"
+        )
+
+
+    # --------------------------------------------------------
+    # RETURN RESULT
+    # --------------------------------------------------------
 
     return {
         "urgency": urgency,
